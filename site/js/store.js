@@ -29,7 +29,9 @@ window.InfraStore = (() => {
     reviews: {},
     summarize: () => ({}),
     listeners: new Set(),
-    saveState: "idle"
+    saveState: "idle",
+    adminCheck: "",
+    syncError: ""
   };
 
   let fb = null;            // { auth, db, fns }
@@ -69,15 +71,27 @@ window.InfraStore = (() => {
     fb = { auth: auth.getAuth(a), db: fs.getFirestore(a), A: auth, F: fs };
   }
 
+  async function checkAdmin(uid) {
+    const { db, F } = fb;
+    try {
+      const snap = await F.getDoc(F.doc(db, "admins", uid));
+      s.isAdmin = snap.exists();
+      s.adminCheck = snap.exists() ? "ok" : "missing";
+    } catch (e) {
+      s.isAdmin = false;
+      s.adminCheck = `error: ${e.code || e.message}`;
+    }
+  }
+
   async function loadMember(user) {
     const { db, F } = fb;
-    const [snap, adminSnap, reviewSnap] = await Promise.all([
-      F.getDoc(F.doc(db, "members", user.uid)),
-      F.getDoc(F.doc(db, "admins", user.uid)).catch(() => null),
-      F.getDoc(F.doc(db, "reviews", user.uid)).catch(() => null)
+    const [snap, reviewSnap] = await Promise.all([
+      F.getDoc(F.doc(db, "members", user.uid)).catch((e) => { s.syncError = e.code || e.message; return null; }),
+      F.getDoc(F.doc(db, "reviews", user.uid)).catch(() => null),
+      checkAdmin(user.uid)
     ]);
-    s.state = snap.exists() ? normalize(snap.data()) : blank();
-    s.isAdmin = !!(adminSnap && adminSnap.exists());
+    if (snap) s.syncError = "";
+    s.state = snap && snap.exists() ? normalize(snap.data()) : blank();
     s.reviews = reviewSnap && reviewSnap.exists() ? reviewSnap.data() : {};
   }
 
@@ -98,9 +112,11 @@ window.InfraStore = (() => {
           updatedAt: F.serverTimestamp()
         })
       ]);
+      s.syncError = "";
       setSave("saved");
     } catch (e) {
       console.error(e);
+      s.syncError = e.code || e.message;
       setSave("error");
     }
   }
@@ -120,6 +136,9 @@ window.InfraStore = (() => {
     get state() { return s.state; },
     get reviews() { return s.reviews; },
     get saveState() { return s.saveState; },
+    get adminCheck() { return s.adminCheck; },
+    get syncError() { return s.syncError; },
+    async recheckAdmin() { if (fb && s.user) { await checkAdmin(s.user.uid); emit(); } },
     subscribe(fn) { s.listeners.add(fn); return () => s.listeners.delete(fn); },
     setSummarizer(fn) { s.summarize = fn; },
 
