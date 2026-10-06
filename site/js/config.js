@@ -10,15 +10,14 @@
  * See README.md → "Connect Firebase".
  */
 window.InfraConfig = {
-  FIREBASE: null,
-  // FIREBASE: {
-  //   apiKey: "…",
-  //   authDomain: "your-project.firebaseapp.com",
-  //   projectId: "your-project",
-  //   storageBucket: "your-project.appspot.com",
-  //   messagingSenderId: "…",
-  //   appId: "…"
-  // },
+  FIREBASE: {
+    apiKey: "AIzaSyCiLxntzxHWfn4FF3aUBCLC09jr5Xvo8Vs",
+    authDomain: "gdgoc-c9e08.firebaseapp.com",
+    projectId: "gdgoc-c9e08",
+    storageBucket: "gdgoc-c9e08.firebasestorage.app",
+    messagingSenderId: "229536394063",
+    appId: "1:229536394063:web:df4270525415d4a0c8333a"
+  },
 
   // Shown on the site. Change freely.
   PROGRAM: {
