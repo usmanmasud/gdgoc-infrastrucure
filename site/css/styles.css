@@ -458,5 +458,3 @@ textarea { resize: vertical; }
   .term-input label { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
-.diag p { display: flex; gap: .4rem; align-items: flex-start; margin: .2rem 0 .6rem; }
-.diag .ms { font-size: 17px; flex: none; margin-top: 1px; }

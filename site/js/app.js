@@ -864,9 +864,7 @@
         <aside class="col-side">
           <section class="card pad"><h3>Account</h3>
             <p class="small">${Store.mode === "firebase" ? `${ic("cloud_done", "c-green")} Synced to the cluster as <b>${esc(Store.user?.email)}</b>` : `${ic("computer", "c-yellow")} Saved in this browser only. Export a backup now and then.`}</p>
-            ${Store.mode === "firebase" ? `<p class="muted small">Member ID: <code class="uid">${esc(Store.user?.uid)}</code></p>
-              <div class="diag small">${adminDiagnosis()}</div>
-              <button class="btn sm" id="recheckAdmin">${ic("refresh")}Re-check admin access</button>` : ""}
+            ${Store.mode === "firebase" ? `<p class="muted small">Member ID: <code class="uid">${esc(Store.user?.uid)}</code></p>` : ""}
             <div class="stack">
               <button class="btn" id="exportBtn">${ic("download")}Export my data</button>
               <label class="btn">${ic("upload")}Import backup<input type="file" id="importFile" accept="application/json" hidden></label>
@@ -882,20 +880,8 @@
       try { const obj = JSON.parse(await f.text()); if (!obj.progress) throw 0; if (!confirm("Replace your current progress with this backup?")) return; Store.importJSON(obj); toast("Backup restored", "success"); rerender(); }
       catch { toast("That file isn't an InfraTrack backup", "error"); }
     };
-    const rc = $("#recheckAdmin");
-    if (rc) rc.onclick = async () => { rc.disabled = true; await Store.recheckAdmin(); rerender(); toast(Store.isAdmin ? "Admin access confirmed" : "Still not an admin; see the note above", Store.isAdmin ? "success" : "error"); };
     const so = $("#signOut"); if (so) so.onclick = async () => { await Store.signOut(); go("#/welcome"); };
     const rs = $("#resetBtn"); if (rs) rs.onclick = () => { if (confirm("Delete your registration and all progress from this browser? Export a backup first if unsure.")) { Store.resetLocal(); go("#/welcome"); } };
-  }
-
-  function adminDiagnosis() {
-    const c = Store.adminCheck || "", uid = esc(Store.user?.uid);
-    const sync = Store.syncError
-      ? `<p class="c-red">${ic("error")} Saving to Firestore failed (<code>${esc(Store.syncError)}</code>). Publish the rules in <b>Firestore Database → Rules</b>, not Realtime Database.</p>` : "";
-    if (c === "ok") return `${sync}<p class="c-green">${ic("verified_user")} Admin access: yes. Open <a href="#/admin">Admin</a>.</p>`;
-    if (c === "missing") return `${sync}<p>${ic("info")} Admin access: no. Firestore has no document <code>admins/${uid}</code>. In <b>Firestore Database → Data</b> (not Realtime Database), the collection must be named exactly <code>admins</code> and the <b>document ID</b> must be exactly your Member ID above (don't use Auto-ID).</p>`;
-    if (c.startsWith("error")) return `${sync}<p class="c-red">${ic("error")} Couldn't check admin access (<code>${esc(c.slice(7))}</code>). ${/permission/i.test(c) ? "Your Firestore rules aren't published yet: paste them in <b>Firestore Database → Rules</b> and click Publish." : "Check your connection and try again."}</p>`;
-    return sync;
   }
 
   function download(name, text, type) {
