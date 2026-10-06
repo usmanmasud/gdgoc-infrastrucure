@@ -1,0 +1,37 @@
+rules_version = '2';
+
+// Firestore security rules for InfraTrack (GDGoC BUK Infrastructure Cluster).
+// Paste into Firebase Console → Firestore Database → Rules, then Publish.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isSelf(uid) { return signedIn() && request.auth.uid == uid; }
+    function isAdmin() {
+      return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Full registration + progress. Private to the member and cluster admins.
+    match /members/{uid} {
+      allow read: if isSelf(uid) || isAdmin();
+      allow write: if isSelf(uid);
+    }
+
+    // Public summary for the leaderboard (name, level, dept, XP, progress). No contact details.
+    match /leaderboard/{uid} {
+      allow read: if signedIn();
+      allow write: if isSelf(uid);
+    }
+
+    // Mentor reviews of milestone submissions.
+    match /reviews/{uid} {
+      allow read: if isSelf(uid) || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Admin list. Create documents here by hand in the console (document ID = the admin's UID).
+    match /admins/{uid} {
+      allow read: if isSelf(uid);
+      allow write: if false;
+    }
+  }
+}
