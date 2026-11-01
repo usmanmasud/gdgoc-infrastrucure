@@ -28,6 +28,19 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Learners of the Week, published by admins and shown on members' dashboards.
+    match /spotlights/{week} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // Certificates. Public read so verification links work for anyone (e.g. employers).
+    // Holds only the name, type, program, date and ID: no contact details.
+    match /certificates/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // Admin list. Create documents here by hand in the console (document ID = the admin's UID).
     match /admins/{uid} {
       allow read: if isSelf(uid);

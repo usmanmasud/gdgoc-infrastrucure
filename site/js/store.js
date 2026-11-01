@@ -6,10 +6,18 @@
  *     leaderboard/{uid}  public summary (any signed-in member can read)
  *     reviews/{uid}      admin feedback on submissions (admins write)
  *     admins/{uid}       existence = admin (create by hand in the console)
+ *     spotlights/{week}  published Learners of the Week (members read, admins write)
+ *     certificates/{id}  issued certificates (anyone can read to verify, admins write)
  */
 window.InfraStore = (() => {
   const cfg = window.InfraConfig;
   const LS_KEY = "gdgoc-infra:v1";
+  const LS_SPOT = "gdgoc-infra:spotlights";
+  const LS_CERT = "gdgoc-infra:certificates";
+  // Local preview only: set localStorage "gdgoc-infra:local-admin" = "1" to see the admin pages without Firebase.
+  const LS_ADMIN = "gdgoc-infra:local-admin";
+  const lsGet = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
   const FB_VERSION = "10.12.2";
 
   const blank = () => ({
@@ -126,6 +134,7 @@ window.InfraStore = (() => {
     async init() {
       if (s.mode === "local") {
         s.state = readLocal();
+        s.isAdmin = lsGet(LS_ADMIN, 0) === 1;
         s.ready = true;
         emit();
         return;
@@ -204,6 +213,43 @@ window.InfraStore = (() => {
       await F.setDoc(F.doc(db, "reviews", uid), {
         [moduleId]: { status, feedback, by: s.user.email || "", at: new Date().toISOString() }
       }, { merge: true });
+    },
+
+    // ----- Learners of the Week -----
+    async spotlights() {
+      const list = s.mode === "local"
+        ? Object.values(lsGet(LS_SPOT, {}))
+        : (await fb.F.getDocs(fb.F.collection(fb.db, "spotlights"))).docs.map((d) => d.data());
+      return list.sort((a, b) => b.week - a.week);
+    },
+    async publishSpotlight(spot) {
+      if (s.mode === "local") { const all = lsGet(LS_SPOT, {}); all[spot.id] = spot; lsSet(LS_SPOT, all); return; }
+      await fb.F.setDoc(fb.F.doc(fb.db, "spotlights", spot.id), spot);
+    },
+    async removeSpotlight(id) {
+      if (s.mode === "local") { const all = lsGet(LS_SPOT, {}); delete all[id]; lsSet(LS_SPOT, all); return; }
+      await fb.F.deleteDoc(fb.F.doc(fb.db, "spotlights", id));
+    },
+
+    // ----- Certificates -----
+    async certificates(uid) {
+      if (s.mode === "local") return Object.values(lsGet(LS_CERT, {})).filter((c) => !uid || c.uid === uid);
+      const { db, F } = fb, col = F.collection(db, "certificates");
+      const snap = await F.getDocs(uid ? F.query(col, F.where("uid", "==", uid)) : col);
+      return snap.docs.map((d) => d.data());
+    },
+    async certificate(id) {
+      if (s.mode === "local") return lsGet(LS_CERT, {})[id] || null;
+      const snap = await fb.F.getDoc(fb.F.doc(fb.db, "certificates", id));
+      return snap.exists() ? snap.data() : null;
+    },
+    async issueCertificate(cert) {
+      if (s.mode === "local") { const all = lsGet(LS_CERT, {}); all[cert.id] = cert; lsSet(LS_CERT, all); return; }
+      await fb.F.setDoc(fb.F.doc(fb.db, "certificates", cert.id), cert);
+    },
+    async revokeCertificate(id) {
+      if (s.mode === "local") { const all = lsGet(LS_CERT, {}); delete all[id]; lsSet(LS_CERT, all); return; }
+      await fb.F.deleteDoc(fb.F.doc(fb.db, "certificates", id));
     },
 
     exportJSON() { return JSON.stringify(s.state, null, 2); },

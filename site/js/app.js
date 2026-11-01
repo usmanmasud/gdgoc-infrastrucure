@@ -1,6 +1,6 @@
 /* InfraTrack — GDGoC BUK Infrastructure Cluster learning tracker. */
 (() => {
-  const D = window.InfraData, Store = window.InfraStore, P = window.InfraConfig.PROGRAM;
+  const D = window.InfraData, Store = window.InfraStore, Media = window.InfraMedia, P = window.InfraConfig.PROGRAM;
   const $ = (sel, el = document) => el.querySelector(sel);
   const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
   const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -152,13 +152,17 @@
     el.innerHTML = { saving: `${ic("sync")}Saving…`, saved: `${ic("cloud_done")}Saved`, error: `${ic("error")}Not saved` }[st] || "";
     el.className = `save-state ${st}`;
     const pr = Store.state.profile;
-    $("#userChip").innerHTML = pr ? `<a href="#/profile" class="avatar" title="${esc(pr.fullName)}">${esc(initials(pr.fullName))}</a>` : "";
+    $("#userChip").innerHTML = pr ? `<a href="#/profile" class="avatar-link" title="${esc(pr.fullName)}">${avatarHTML(pr.fullName, pr.photo)}</a>` : "";
     const active = (location.hash.replace(/^#\/?/, "").split("/")[0]) || "";
     renderNav(active);
   }
   const initials = (n = "") => n.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+  const avatarHTML = (name, photo, cls = "") => photo
+    ? `<img class="avatar ${cls}" src="${esc(photo)}" alt="">`
+    : `<span class="avatar ${cls}">${esc(initials(name))}</span>`;
 
   // ---------- router ----------
+  const PUBLIC_ROUTES = ["certificate"]; // viewable without signing in, e.g. certificate verification links
   let lastHash = null;
   function route() {
     if (!Store.ready) { view.innerHTML = `<div class="loading">${ic("progress_activity", "spin")} Loading…</div>`; return; }
@@ -166,7 +170,8 @@
     const needsAuth = Store.mode === "firebase" && !Store.user;
     const registered = !!Store.state.profile;
     let target = name;
-    if (needsAuth) target = "welcome";
+    if (PUBLIC_ROUTES.includes(name)) target = name;
+    else if (needsAuth) target = "welcome";
     else if (!registered && !["welcome", "register"].includes(name)) target = "welcome";
     else if (registered && ["welcome", "register"].includes(name)) target = "";
     if (target !== name) history.replaceState(null, "", `#/${target}`);
@@ -378,6 +383,7 @@
         </div>
 
         <aside class="col-side">
+          <div id="certSlot"></div><div id="spotSlot"></div>
           ${nxt ? `<section class="card pad next">
             <p class="eyebrow">Next session</p>
             <h3>${esc(nxt.title)}</h3>
@@ -401,6 +407,11 @@
         </aside>
       </div>`;
     bindLabs();
+    myCertificates().then((certs) => {
+      const el = $("#certSlot");
+      if (el && certs.length) el.innerHTML = `<a class="card pad cert-banner" href="#/certificate/${esc(certs[0].id)}">${ic("workspace_premium", "c-yellow")}<span><b>Your certificate is ready</b><span class="muted small block">${esc(CERT_TYPES[certs[0].type])} · view, download or add to LinkedIn</span></span>${ic("arrow_forward")}</a>`;
+    });
+    getSpotlights().then((spots) => { const el = $("#spotSlot"); if (el && spots[0]) el.innerHTML = spotlightCard(spots[0]); });
   }
 
   function labItem(mid, i, text) {
@@ -811,7 +822,9 @@
   async function leaderboard() {
     view.innerHTML = `<div class="page-head"><p class="eyebrow">Leaderboard</p><h1>Cluster leaderboard</h1>
       <p class="muted">XP comes from labs, quizzes, milestones, drills and consistent journaling. It rewards steady work, not speed.</p></div>
+      <div id="lbSpot"></div>
       <section class="card"><div id="lb" class="pad">${ic("progress_activity", "spin")} Loading…</div></section>`;
+    getSpotlights().then((spots) => { const el = $("#lbSpot"); if (el && spots[0]) el.innerHTML = spotlightCard(spots[0]); });
     let rows;
     try { rows = await Store.leaderboard(); } catch (e) { console.error(e); $("#lb").innerHTML = `<p class="muted">Couldn't load the leaderboard. Check your connection.</p>`; return; }
     if (!$("#lb")) return;
@@ -857,7 +870,7 @@
     view.innerHTML = `
       <div class="page-head row"><div><p class="eyebrow">Profile</p><h1>${esc(pr.fullName)}</h1>
         <p class="muted">${esc(pr.regNo)} · ${esc(pr.level)}${/\d/.test(pr.level) ? " Level" : ""} · ${esc(pr.department)}, ${esc(pr.faculty)}</p></div>
-        <span class="avatar lg">${esc(initials(pr.fullName))}</span></div>
+        ${avatarHTML(pr.fullName, pr.photo, "lg")}</div>
       <section class="card pad"><h2>Badges</h2><div class="badge-list">${s.badges.map((b) => `<div class="badge-row ${b.earned ? "earned" : ""}"><span class="badge ${b.earned ? "earned" : ""}">${ic(b.icon)}</span><div><b>${esc(b.name)}</b><span class="muted small">${esc(b.desc)}</span></div></div>`).join("")}</div></section>
       <div class="cols">
         <div class="col-main"><section class="card pad"><h2>Edit registration</h2>${profileForm(pr, true)}</section></div>
@@ -870,6 +883,12 @@
               <label class="btn">${ic("upload")}Import backup<input type="file" id="importFile" accept="application/json" hidden></label>
               ${Store.mode === "firebase" ? `<button class="btn" id="signOut">${ic("logout")}Sign out</button>` : `<button class="btn danger" id="resetBtn">${ic("delete_forever")}Reset everything</button>`}
             </div></section>
+          <section class="card pad"><h3>Photo</h3>
+            <div class="photo-row">${avatarHTML(pr.fullName, pr.photo, "lg")}
+              <div class="stack"><label class="btn">${ic("add_a_photo")}${pr.photo ? "Change photo" : "Upload photo"}<input type="file" id="photoFile" accept="image/*" hidden></label>
+              ${pr.photo ? `<button class="btn danger" id="photoRemove">${ic("delete")}Remove</button>` : ""}</div></div>
+            <p class="muted small">Shown on your profile and on the Learners of the Week flyer if you're featured. A clear photo of your face works best.</p></section>
+          <section class="card pad" id="certSection"><h3>Certificate</h3><p class="muted small">${ic("progress_activity", "spin")} Checking…</p></section>
           <section class="card pad"><h3>Registered</h3><p class="muted small">${pr.registeredAt ? new Date(pr.registeredAt).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" }) : "—"}</p></section>
         </aside>
       </div>`;
@@ -880,6 +899,13 @@
       try { const obj = JSON.parse(await f.text()); if (!obj.progress) throw 0; if (!confirm("Replace your current progress with this backup?")) return; Store.importJSON(obj); toast("Backup restored", "success"); rerender(); }
       catch { toast("That file isn't an InfraTrack backup", "error"); }
     };
+    $("#photoFile").onchange = async (e) => {
+      try { const photo = await Media.photoFromFile(e.target.files[0]); Store.saveProfile({ photo }); toast("Photo updated", "success"); rerender(); }
+      catch (err) { toast(err.message, "error"); }
+    };
+    const pRm = $("#photoRemove");
+    if (pRm) pRm.onclick = () => { Store.saveProfile({ photo: "" }); toast("Photo removed"); rerender(); };
+    myCertificates().then((certs) => { const el = $("#certSection"); if (el) el.innerHTML = certSectionHTML(certs, s); });
     const so = $("#signOut"); if (so) so.onclick = async () => { await Store.signOut(); go("#/welcome"); };
     const rs = $("#resetBtn"); if (rs) rs.onclick = () => { if (confirm("Delete your registration and all progress from this browser? Export a backup first if unsure.")) { Store.resetLocal(); go("#/welcome"); } };
   }
@@ -891,27 +917,8 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
 
-  // ----- admin -----
+  // ----- admin: members -----
   let adminFilter = { q: "", level: "" };
-  async function admin() {
-    if (!Store.isAdmin) {
-      view.innerHTML = `<div class="page-head"><p class="eyebrow">Admin</p><h1>Cluster dashboard</h1></div>
-        <section class="card pad"><p>${Store.mode === "local"
-          ? "The admin dashboard needs Firebase mode, so registrations from every member are collected in one place. Follow <b>Connect Firebase</b> in the README."
-          : `You're not an admin. To grant access, create a document <code>admins/${esc(Store.user?.uid)}</code> in Firestore (any content).`}</p></section>`;
-      return;
-    }
-    view.innerHTML = `<div class="page-head"><p class="eyebrow">Admin</p><h1>Cluster dashboard</h1></div><div id="adm">${ic("progress_activity", "spin")} Loading members…</div>`;
-    let members;
-    try { members = await Store.allMembers(); } catch (e) { console.error(e); $("#adm").innerHTML = `<p class="muted">Couldn't load members: ${esc(e.message)}</p>`; return; }
-    if (!$("#adm")) return;
-    const rows = members.filter((m) => m.profile).map((m) => {
-      const s = stats(m), act = Object.keys(m.progress.activity || {}).sort().pop() || "";
-      return { ...m, s, lastActive: act };
-    }).sort((a, b) => b.s.xp - a.s.xp);
-    renderAdmin(rows);
-  }
-
   function renderAdmin(rows) {
     const el = $("#adm"), week = addDays(todayStr(), -7);
     const active = rows.filter((r) => r.lastActive >= week).length;
@@ -997,7 +1004,347 @@
     return "﻿" + [cols.map((c) => c[0]).join(","), ...rows.map((r) => cols.map((c) => cell(c[1](r))).join(","))].join("\n");
   }
 
-  const ROUTES = { "": dashboard, welcome, register, roadmap, module: moduleView, practice, journal, career, leaderboard, resources, profile, admin };
+  // ---------- recognition & certificates: shared ----------
+  const cache = { spot: null, myCerts: null };
+  async function getSpotlights(force) {
+    if (!cache.spot || force) cache.spot = await Store.spotlights().catch((e) => { console.error(e); return []; });
+    return cache.spot;
+  }
+  const myUid = () => (Store.mode === "firebase" ? Store.user?.uid : "local");
+  async function myCertificates(force) {
+    if (!cache.myCerts || force) cache.myCerts = await Store.certificates(myUid()).catch((e) => { console.error(e); return []; });
+    return cache.myCerts;
+  }
+  const siteUrl = () => location.origin + location.pathname;
+
+  const CERT_TYPES = { distinction: "Completion with Distinction", completion: "Completion", participation: "Participation" };
+  const CERT_RULES = "Distinction: 85%+ overall and at least 9 milestones · Completion: 60%+ overall and at least 5 milestones · Participation: 25%+ overall";
+  function certTier(s) {
+    if (s.overall >= 85 && s.subs >= 9) return "distinction";
+    if (s.overall >= 60 && s.subs >= 5) return "completion";
+    if (s.overall >= 25) return "participation";
+    return null;
+  }
+  const properName = (n = "") => (n === n.toUpperCase() ? n.toLowerCase().replace(/(^|[\s'-])\p{L}/gu, (c) => c.toUpperCase()) : n).trim();
+  function newCertId() {
+    const abc = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789", b = crypto.getRandomValues(new Uint8Array(6));
+    return `INFRA-${P.end.slice(2, 4)}-${[...b].map((x) => abc[x % abc.length]).join("")}`;
+  }
+
+  function certSectionHTML(certs, s) {
+    if (certs.length) return `<h3>Certificate</h3>${certs.map((c) => `<a class="cert-link" href="#/certificate/${esc(c.id)}">${ic("workspace_premium", "c-yellow")}<span><b>${esc(CERT_TYPES[c.type] || c.type)}</b><span class="muted small block">Issued ${new Date(c.issuedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} · View & download</span></span></a>`).join("")}`;
+    const tier = certTier(s);
+    return `<h3>Certificate</h3>
+      <p class="small">Certificates are issued by the cluster leads after Demo Day (${fmt(P.end, { day: "numeric", month: "long" })}).</p>
+      <p class="small">You're on track for: <b>${tier ? CERT_TYPES[tier] : "not yet eligible"}</b> · ${s.overall}% overall, ${s.subs}/${D.modules.length} milestones.</p>
+      <p class="muted small">${CERT_RULES}</p>`;
+  }
+
+  function spotlightCard(sp, compact = false) {
+    const me = myUid();
+    const medals = ["m1", "m2", "m3"];
+    return `<section class="card pad spot">
+      <div class="card-head"><div><p class="eyebrow">${ic("star", "c-yellow")} Learners of the week · Week ${sp.week}</p><h3>${esc(sp.title)}</h3></div></div>
+      <ol class="spot-list">${sp.winners.map((w, i) => `<li>
+        <span class="spot-av">${avatarHTML(w.name, w.photo)}<span class="medal ${medals[i]}">${i + 1}</span></span>
+        <div><b>${esc(w.name)}${w.uid === me ? ` ${chip("You! 🎉", "green")}` : ""}</b><span class="muted small block">${esc(w.highlight)}</span></div></li>`).join("")}</ol>
+      ${!compact && sp.message ? `<p class="muted small">${esc(sp.message)}</p>` : ""}
+    </section>`;
+  }
+
+  // Week windows run from one Thursday session to the day before the next.
+  const WEEKS = D.modules.map((m, i) => ({ id: m.id, week: m.week, title: m.title, from: i === 0 ? P.start : m.date, to: i < D.modules.length - 1 ? addDays(D.modules[i + 1].date, -1) : P.end }));
+  const currentWeekIndex = () => { const t = todayStr(); let k = 0; WEEKS.forEach((w, i) => { if (w.from <= t) k = i; }); return k; };
+
+  function weekActivity(st, w) {
+    const p = st.progress;
+    const inR = (iso) => typeof iso === "string" && iso.slice(0, 10) >= w.from && iso.slice(0, 10) <= w.to;
+    const labs = Object.values(p.labs || {}).filter(inR).length;
+    const milestones = Object.values(p.submissions || {}).filter((x) => inR(x.at)).length;
+    const drills = Object.values(p.drills || {}).filter((d) => d.solved && inR(d.at)).length;
+    const quizzes = Object.values(p.quizzes || {}).filter((q) => inR(q.at)).length;
+    const minutes = (p.logs || []).filter((l) => l.date >= w.from && l.date <= w.to).reduce((n, l) => n + (Number(l.minutes) || 0), 0);
+    const days = Object.keys(p.activity || {}).filter((d) => d >= w.from && d <= w.to).length;
+    const score = labs * 10 + milestones * 30 + drills * 5 + quizzes * 10 + Math.round(minutes / 10) + days * 5;
+    return { labs, milestones, drills, quizzes, minutes, days, score };
+  }
+  const plural = (n, one, many = one + "s") => `${n} ${n === 1 ? one : many}`;
+  const hm = (m) => [Math.floor(m / 60) && `${Math.floor(m / 60)}h`, m % 60 && `${m % 60}m`].filter(Boolean).join(" ") || "0m";
+  const listJoin = (a) => (a.length < 2 ? a.join("") : `${a.slice(0, -1).join(", ")} and ${a[a.length - 1]}`);
+  function highlightOf(a) {
+    const parts = [];
+    if (a.labs) parts.push(plural(a.labs, "lab"));
+    if (a.milestones) parts.push(plural(a.milestones, "milestone"));
+    if (a.drills) parts.push(plural(a.drills, "terminal drill"));
+    if (a.quizzes) parts.push(plural(a.quizzes, "quiz", "quizzes"));
+    if (a.minutes >= 30) parts.push(`${hm(a.minutes)} of study`);
+    if (parts.length < 2 && a.days) parts.push(plural(a.days, "active day"));
+    return listJoin(parts.slice(0, 3));
+  }
+  const levelLabel = (l) => (/\d/.test(l || "") ? `${l}L` : l || "");
+
+  // ----- admin -----
+  let adminRows = null;
+  async function admin(tab = "overview") {
+    if (!Store.isAdmin) {
+      view.innerHTML = `<div class="page-head"><p class="eyebrow">Admin</p><h1>Cluster dashboard</h1></div>
+        <section class="card pad"><p>${Store.mode === "local"
+          ? "The admin dashboard needs Firebase mode, so registrations from every member are collected in one place. Follow <b>Connect Firebase</b> in the README."
+          : `You're not an admin. To grant access, create a document <code>admins/${esc(Store.user?.uid)}</code> in Firestore (any content).`}</p></section>`;
+      return;
+    }
+    const tabs = [["overview", "Members", "group"], ["recognition", "Learners of the Week", "star"], ["certificates", "Certificates", "workspace_premium"]];
+    if (!tabs.some((t) => t[0] === tab)) tab = "overview";
+    view.innerHTML = `<div class="page-head row"><div><p class="eyebrow">Admin</p><h1>Cluster dashboard</h1></div>
+        <button class="btn" id="admReload">${ic("refresh")}Refresh data</button></div>
+      <div class="tabs" role="tablist">${tabs.map(([id, label, icon]) => `<a role="tab" href="#/admin/${id === "overview" ? "" : id}" class="${tab === id ? "active" : ""}" aria-selected="${tab === id}">${ic(icon)}${label}</a>`).join("")}</div>
+      <div id="adm">${ic("progress_activity", "spin")} Loading members…</div>`;
+    $("#admReload").onclick = () => { adminRows = null; cache.spot = null; rerender(); };
+    if (!adminRows) {
+      let members;
+      try { members = await Store.allMembers(); } catch (e) { console.error(e); if ($("#adm")) $("#adm").innerHTML = `<p class="muted">Couldn't load members: ${esc(e.message)}</p>`; return; }
+      adminRows = members.filter((m) => m.profile).map((m) => {
+        const s = stats(m), act = Object.keys(m.progress.activity || {}).sort().pop() || "";
+        return { ...m, s, lastActive: act };
+      }).sort((a, b) => b.s.xp - a.s.xp);
+    }
+    if (!$("#adm")) return;
+    ({ overview: renderAdmin, recognition: renderRecognition, certificates: renderCertAdmin })[tab](adminRows);
+  }
+
+  // ----- admin: learners of the week -----
+  const recog = { weekId: null, selected: null, photos: {}, message: "", caption: "", captionEdited: false };
+  const DEFAULT_MESSAGE = "Consistency wins. Keep showing up on InfraTrack, and you could be next!";
+
+  async function renderRecognition(rows) {
+    const el = $("#adm");
+    const weeks = WEEKS.slice(0, currentWeekIndex() + 1).reverse();
+    if (!recog.weekId || !weeks.some((w) => w.id === recog.weekId)) recog.weekId = weeks[0].id;
+    const w = WEEKS.find((x) => x.id === recog.weekId);
+    const ranked = rows.map((r) => ({ r, a: weekActivity(r, w) })).filter((x) => x.a.score > 0).sort((a, b) => b.a.score - a.a.score);
+    const spots = await getSpotlights();
+    if (!$("#adm")) return;
+    const published = spots.find((sp) => sp.id === w.id);
+    if (!recog.selected) {
+      recog.selected = published ? published.winners.map((x) => x.uid).filter((u) => ranked.some((x) => x.r.uid === u)) : ranked.slice(0, 3).map((x) => x.r.uid);
+      recog.message = published?.message || DEFAULT_MESSAGE;
+      recog.caption = published?.caption || "";
+      recog.captionEdited = !!published?.caption;
+    }
+    const winners = () => ranked.filter((x) => recog.selected.includes(x.r.uid)).slice(0, 3).map(({ r, a }) => ({
+      uid: r.uid, name: properName(r.profile.fullName), level: r.profile.level, department: r.profile.department,
+      sub: [levelLabel(r.profile.level), r.profile.department].filter(Boolean).join(" · "),
+      highlight: highlightOf(a), score: a.score,
+      photo: recog.photos[r.uid] || r.profile.photo || (r.profile.github ? `https://avatars.githubusercontent.com/${encodeURIComponent(r.profile.github)}?s=256` : "")
+    }));
+    const range = `${fmt(w.from)} – ${fmt(w.to)}`;
+    const makeCaption = () => {
+      const ws = winners(), medal = ["🥇", "🥈", "🥉"];
+      return `🌟 *Learners of the Week* · Week ${w.week} (${range})\n\nCongratulations to this week's most active learners in the ${P.short} ${P.cluster}! 👏\n\n${ws.map((x, i) => `${medal[i]} *${x.name}* (${[levelLabel(x.level), x.department].filter(Boolean).join(", ")}): ${x.highlight}`).join("\n")}\n\n${recog.message}\n\nTrack your progress: ${siteUrl()}\n#GDGoCBUK #CloudAndDevOps`;
+    };
+    if (!recog.captionEdited) recog.caption = makeCaption();
+
+    el.innerHTML = `
+      <section class="card pad">
+        <div class="card-head wrap"><div><h2>${ic("star", "c-yellow")}Learners of the Week</h2>
+          <p class="muted small">Members ranked by activity during the session week. Tick up to 3, then download the flyer, copy the write-up, or publish to members' dashboards.</p></div>
+          <select id="recWeek" aria-label="Week">${weeks.map((x) => `<option value="${x.id}" ${x.id === w.id ? "selected" : ""}>Week ${x.week} · ${fmt(x.from)} – ${fmt(x.to)}${spots.some((sp) => sp.id === x.id) ? " ✓" : ""}</option>`).join("")}</select></div>
+        ${published ? `<p class="notice">${ic("check_circle", "c-green")} Published to members on ${new Date(published.publishedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}. Publish again to update it.</p>` : ""}
+        ${ranked.length ? `<div class="table-wrap"><table class="table rec"><thead><tr><th></th><th>#</th><th>Member</th><th class="num">Score</th><th class="hide-sm num">Labs</th><th class="hide-sm num">Drills</th><th class="hide-sm num">Milestones</th><th class="hide-sm num">Quizzes</th><th class="hide-sm num">Study</th><th class="hide-sm num">Days</th></tr></thead>
+          <tbody>${ranked.slice(0, 25).map(({ r, a }, i) => `<tr><td><input type="checkbox" data-pick="${esc(r.uid)}" ${recog.selected.includes(r.uid) ? "checked" : ""} aria-label="Feature ${esc(r.profile.fullName)}"></td><td>${i + 1}</td>
+            <td><div class="who">${avatarHTML(r.profile.fullName, r.profile.photo, "sm")}<div><b>${esc(r.profile.fullName)}</b><span class="muted small">${esc(levelLabel(r.profile.level))} · ${esc(r.profile.department)}</span></div></div></td>
+            <td class="num"><b>${a.score}</b></td><td class="hide-sm num">${a.labs}</td><td class="hide-sm num">${a.drills}</td><td class="hide-sm num">${a.milestones}</td><td class="hide-sm num">${a.quizzes}</td><td class="hide-sm num nowrap">${hm(a.minutes)}</td><td class="hide-sm num">${a.days}</td></tr>`).join("")}</tbody></table></div>
+          <p class="muted small">Score = lab ×10 · milestone ×30 · drill ×5 · quiz ×10 · active day ×5 · 1 point per 10 min logged in the journal.</p>`
+          : `<p class="muted">No activity recorded for Week ${w.week} yet.</p>`}
+      </section>
+      ${ranked.length ? `<div class="cols">
+        <div class="col-main"><section class="card pad"><div class="card-head"><h2>Flyer</h2><span class="muted small">1080 × 1350 · WhatsApp & Instagram</span></div>
+          <canvas id="flyer" class="flyer-canvas" aria-label="Flyer preview"></canvas></section></div>
+        <aside class="col-side">
+          <section class="card pad"><h3>Photos</h3>
+            ${winners().length ? winners().map((x) => `<div class="photo-pick">${avatarHTML(x.name, recog.photos[x.uid] || x.photo)}<div><b>${esc(x.name)}</b><span class="muted small block">${recog.photos[x.uid] ? "Uploaded for this flyer" : x.photo ? "From their profile or GitHub" : "No photo: initials are used"}</span></div>
+              <label class="icon-btn" title="Upload a photo">${ic("add_a_photo")}<input type="file" accept="image/*" data-photo="${esc(x.uid)}" hidden></label></div>`).join("") : `<p class="muted small">Tick at least one member above.</p>`}
+            <p class="muted small">Members can add their own photo on their Profile page. Photos uploaded here are only used for this week's flyer.</p></section>
+          <section class="card pad"><h3>Flyer message</h3><textarea id="recMsg" rows="3" maxlength="140">${esc(recog.message)}</textarea></section>
+          <section class="card pad"><div class="card-head"><h3>Write-up</h3><button class="btn sm" id="regen" title="Rebuild from the selected learners">${ic("refresh")}Reset</button></div>
+            <textarea id="recCaption" rows="11">${esc(recog.caption)}</textarea>
+            <p class="muted small">For the WhatsApp group or LinkedIn. <code>*bold*</code> works on WhatsApp.</p></section>
+          <section class="card pad stack">
+            <button class="btn primary" id="dlFlyer">${ic("download")}Download flyer (PNG)</button>
+            <button class="btn" id="copyCaption">${ic("content_copy")}Copy write-up</button>
+            <button class="btn" id="publish">${ic("campaign")}${published ? "Update on members' dashboards" : "Publish to members' dashboards"}</button>
+            ${published ? `<button class="btn danger" id="unpublish">${ic("visibility_off")}Unpublish</button>` : ""}
+          </section>
+        </aside></div>` : ""}`;
+
+    $("#recWeek").onchange = (e) => { recog.weekId = e.target.value; recog.selected = null; recog.photos = {}; renderRecognition(rows); };
+    if (!ranked.length) return;
+    const canvas = $("#flyer");
+    let drawTimer;
+    const draw = () => {
+      clearTimeout(drawTimer);
+      drawTimer = setTimeout(() => Media.flyer(canvas, { eyebrow: `Week ${w.week} · ${range}`, winners: winners(), message: recog.message, footerLeft: `${P.track} · ${P.name}`, footerRight: "#GDGoCBUK" }), 150);
+    };
+    draw();
+    const syncCaption = () => { if (!recog.captionEdited) { recog.caption = makeCaption(); $("#recCaption").value = recog.caption; } };
+    $$("[data-pick]", el).forEach((cb) => (cb.onchange = () => {
+      const uid = cb.dataset.pick;
+      if (cb.checked && recog.selected.length >= 3) { cb.checked = false; toast("Pick up to 3 learners", "error"); return; }
+      recog.selected = cb.checked ? [...recog.selected, uid] : recog.selected.filter((u) => u !== uid);
+      recog.captionEdited = false;
+      renderRecognition(rows);
+    }));
+    $$("[data-photo]", el).forEach((inp) => (inp.onchange = async () => {
+      try { recog.photos[inp.dataset.photo] = await Media.photoFromFile(inp.files[0], 320); renderRecognition(rows); }
+      catch (err) { toast(err.message, "error"); }
+    }));
+    $("#recMsg").oninput = (e) => { recog.message = e.target.value; syncCaption(); draw(); };
+    $("#recCaption").oninput = (e) => { recog.caption = e.target.value; recog.captionEdited = true; };
+    $("#regen").onclick = () => { recog.captionEdited = false; syncCaption(); };
+    $("#dlFlyer").onclick = () => canvas.toBlob((b) => {
+      if (!b) { toast("Couldn't create the image", "error"); return; }
+      const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = `learners-of-the-week-w${w.week}.png`; a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    }, "image/png");
+    $("#copyCaption").onclick = async () => {
+      try { await navigator.clipboard.writeText(recog.caption); toast("Write-up copied", "success"); }
+      catch { $("#recCaption").select(); toast("Press Ctrl+C to copy"); }
+    };
+    $("#publish").onclick = async () => {
+      const ws = winners();
+      if (!ws.length) { toast("Tick at least one learner", "error"); return; }
+      const spot = {
+        id: w.id, week: w.week, title: w.title, from: w.from, to: w.to,
+        winners: ws.map(({ uid, name, level, department, highlight, score, photo }) => ({ uid, name, level, department, highlight, score, photo })),
+        message: recog.message, caption: recog.caption, publishedAt: new Date().toISOString(), by: Store.user?.email || "local"
+      };
+      try { await Store.publishSpotlight(spot); await getSpotlights(true); toast("Published to members' dashboards", "success"); renderRecognition(rows); }
+      catch (err) { console.error(err); toast(/permission/i.test(err.message) ? "Permission denied: publish the updated Firestore rules (see README)" : err.message, "error"); }
+    };
+    const un = $("#unpublish");
+    if (un) un.onclick = async () => {
+      if (!confirm(`Remove Week ${w.week}'s Learners of the Week from members' dashboards?`)) return;
+      try { await Store.removeSpotlight(w.id); await getSpotlights(true); toast("Unpublished"); renderRecognition(rows); }
+      catch (err) { toast(err.message, "error"); }
+    };
+  }
+
+  // ----- admin: certificates -----
+  let certFilter = "all";
+  async function renderCertAdmin(rows) {
+    const el = $("#adm");
+    let certs;
+    try { certs = await Store.certificates(); } catch (e) { console.error(e); el.innerHTML = `<p class="muted">Couldn't load certificates: ${esc(e.message)}. Have you published the updated Firestore rules?</p>`; return; }
+    if (!$("#adm")) return;
+    const byUid = {};
+    certs.forEach((c) => { if (!byUid[c.uid] || c.issuedAt > byUid[c.uid].issuedAt) byUid[c.uid] = c; });
+    const list = rows.map((r) => ({ r, tier: certTier(r.s), cert: byUid[r.uid] }));
+    const pending = list.filter((x) => x.tier && !x.cert);
+    const shown = list.filter((x) => certFilter === "all" || (certFilter === "eligible" && x.tier && !x.cert) || (certFilter === "issued" && x.cert) || (certFilter === "none" && !x.tier && !x.cert));
+    const count = (f) => list.filter(f).length;
+    el.innerHTML = `
+      <section class="stats">
+        <div class="stat card"><span class="stat-ic bg-yellow">${ic("workspace_premium")}</span><div><span class="stat-num">${certs.length}</span><span class="stat-label">Issued</span></div></div>
+        <div class="stat card"><span class="stat-ic bg-green">${ic("verified")}</span><div><span class="stat-num">${pending.length}</span><span class="stat-label">Eligible, not issued</span></div></div>
+        <div class="stat card"><span class="stat-ic bg-blue">${ic("military_tech")}</span><div><span class="stat-num">${count((x) => x.tier === "distinction")}</span><span class="stat-label">On track for distinction</span></div></div>
+        <div class="stat card"><span class="stat-ic bg-red">${ic("hourglass_empty")}</span><div><span class="stat-num">${count((x) => !x.tier)}</span><span class="stat-label">Not yet eligible</span></div></div>
+      </section>
+      <section class="card pad">
+        <div class="card-head wrap"><div><h2>Certificates</h2><p class="muted small">${CERT_RULES}. You can change the type before issuing. Each certificate gets a public verification link.</p></div>
+          ${pending.length ? `<button class="btn primary" id="issueAll">${ic("done_all")}Issue all eligible (${pending.length})</button>` : ""}</div>
+        ${todayStr() < P.end ? `<p class="notice">${ic("info", "c-blue")} Demo Day is ${fmt(P.end, { day: "numeric", month: "long" })}. You can issue early, but progress may still change before then.</p>` : ""}
+        <div class="filters">${[["all", "All"], ["eligible", "Eligible"], ["issued", "Issued"], ["none", "Not eligible"]].map(([k, l]) => `<button class="filter ${certFilter === k ? "active" : ""}" data-cf="${k}">${l}</button>`).join("")}</div>
+        <div class="table-wrap"><table class="table"><thead><tr><th>Member</th><th>Progress</th><th class="hide-sm num">Milestones</th><th>Certificate</th></tr></thead>
+          <tbody>${shown.map(({ r, tier, cert }) => `<tr><td><b>${esc(properName(r.profile.fullName))}</b><span class="muted small block">${esc(r.profile.regNo)} · ${esc(levelLabel(r.profile.level))}</span></td>
+            <td class="lb-prog">${bar(r.s.overall, "green")}<span class="small muted">${r.s.overall}%</span></td><td class="hide-sm num">${r.s.subs}/${D.modules.length}</td>
+            <td>${cert
+              ? `<div class="cert-cell">${chip(CERT_TYPES[cert.type], cert.type === "distinction" ? "yellow" : "green")}<a class="btn sm" href="#/certificate/${esc(cert.id)}" target="_blank" rel="noopener">${ic("open_in_new")}View</a><button class="btn sm danger" data-revoke="${esc(cert.id)}">Revoke</button></div>`
+              : `<div class="cert-cell"><select data-type="${esc(r.uid)}" aria-label="Certificate type">${Object.entries(CERT_TYPES).map(([k, l]) => `<option value="${k}" ${k === (tier || "participation") ? "selected" : ""}>${l}</option>`).join("")}</select><button class="btn sm ${tier ? "primary" : ""}" data-issue="${esc(r.uid)}">Issue</button>${tier ? "" : `<span class="muted small">Not yet eligible</span>`}</div>`}</td></tr>`).join("") || `<tr><td colspan="4" class="muted">Nobody in this list.</td></tr>`}</tbody></table></div>
+      </section>`;
+
+    const issue = async (r, type) => {
+      const cert = { id: newCertId(), uid: r.uid, name: properName(r.profile.fullName), type, program: P.track, issuedAt: new Date().toISOString(), issuedBy: Store.user?.email || "local" };
+      await Store.issueCertificate(cert);
+      return cert;
+    };
+    $$("[data-cf]", el).forEach((b) => (b.onclick = () => { certFilter = b.dataset.cf; renderCertAdmin(rows); }));
+    $$("[data-issue]", el).forEach((b) => (b.onclick = async () => {
+      const r = rows.find((x) => x.uid === b.dataset.issue), type = $(`[data-type="${CSS.escape(r.uid)}"]`, el).value;
+      if (!certTier(r.s) && !confirm(`${r.profile.fullName} isn't eligible yet (${r.s.overall}% overall). Issue anyway?`)) return;
+      b.disabled = true;
+      try { await issue(r, type); cache.myCerts = null; toast("Certificate issued", "success"); renderCertAdmin(rows); }
+      catch (err) { console.error(err); b.disabled = false; toast(/permission/i.test(err.message) ? "Permission denied: publish the updated Firestore rules (see README)" : err.message, "error"); }
+    }));
+    $$("[data-revoke]", el).forEach((b) => (b.onclick = async () => {
+      if (!confirm("Revoke this certificate? Its verification link will stop working.")) return;
+      try { await Store.revokeCertificate(b.dataset.revoke); cache.myCerts = null; toast("Certificate revoked"); renderCertAdmin(rows); }
+      catch (err) { toast(err.message, "error"); }
+    }));
+    const all = $("#issueAll");
+    if (all) all.onclick = async () => {
+      if (!confirm(`Issue ${pending.length} certificate(s) using the suggested types?`)) return;
+      all.disabled = true;
+      try { for (const x of pending) await issue(x.r, x.tier); cache.myCerts = null; toast(`${pending.length} certificate(s) issued`, "success"); }
+      catch (err) { console.error(err); toast(err.message, "error"); }
+      renderCertAdmin(rows);
+    };
+  }
+
+  // ----- certificate page (public: verification links work without signing in) -----
+  async function certificateView(id) {
+    view.innerHTML = `<div class="loading">${ic("progress_activity", "spin")} Loading certificate…</div>`;
+    const c = id ? await Store.certificate(decodeURIComponent(id)).catch((e) => { console.error(e); return null; }) : null;
+    if (!$(".loading", view)) return;
+    if (!c) {
+      view.innerHTML = `<div class="page-head"><p class="eyebrow">Certificate</p><h1>Certificate not found</h1>
+        <p class="muted">No certificate with ID <code>${esc(decodeURIComponent(id || ""))}</code> exists. It may have been revoked, or the link may be incomplete.</p></div>`;
+      return;
+    }
+    const url = `${siteUrl()}#/certificate/${encodeURIComponent(c.id)}`;
+    const issued = new Date(c.issuedAt);
+    const title = `${CERT_TYPES[c.type] || c.type}: ${P.track}`;
+    const mine = c.uid === myUid();
+    view.innerHTML = `
+      <div class="page-head no-print"><p class="eyebrow">Certificate · ${esc(P.short)}</p><h1>${esc(c.name)}</h1></div>
+      <div class="cols cert-cols">
+        <div class="col-main"><div class="card cert-frame"><img id="certImg" class="cert-img" alt="Certificate of ${esc(CERT_TYPES[c.type])} for ${esc(c.name)}"></div></div>
+        <aside class="col-side no-print">
+          <section class="card pad verify"><p class="verified">${ic("verified", "c-green")}<b>Verified certificate</b></p>
+            <div class="kv one">
+              <div><span class="muted small">Awarded to</span><b>${esc(c.name)}</b></div>
+              <div><span class="muted small">Certificate</span><b>${esc(CERT_TYPES[c.type] || c.type)}</b></div>
+              <div><span class="muted small">Program</span><b>${esc(P.track)}</b></div>
+              <div><span class="muted small">Issued by</span><b>${esc(P.short)} · ${esc(P.cluster)}</b></div>
+              <div><span class="muted small">Date issued</span><b>${issued.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })}</b></div>
+              <div><span class="muted small">Certificate ID</span><b><code>${esc(c.id)}</code></b></div>
+            </div></section>
+          <section class="card pad stack">
+            <button class="btn primary" id="certPng" disabled>${ic("download")}Download (PNG)</button>
+            <button class="btn" id="certPrint">${ic("picture_as_pdf")}Print / save as PDF</button>
+            <button class="btn" id="certCopy">${ic("link")}Copy verification link</button>
+            ${mine ? `<a class="btn" target="_blank" rel="noopener" href="https://www.linkedin.com/profile/add?startTask=CERTIFICATION_NAME&name=${encodeURIComponent(title)}&organizationName=${encodeURIComponent(P.chapter)}&issueYear=${issued.getFullYear()}&issueMonth=${issued.getMonth() + 1}&certUrl=${encodeURIComponent(url)}&certId=${encodeURIComponent(c.id)}">${ic("add")}Add to LinkedIn</a>` : ""}
+          </section>
+        </aside>
+      </div>`;
+    const canvas = document.createElement("canvas");
+    await Media.certificate(canvas, c, {
+      chapter: P.chapter, cluster: `${P.short} ${P.cluster}`, track: P.track, weeks: D.modules.length,
+      period: `${fmt(D.modules[0].date, { day: "numeric", month: "long" })} – ${fmt(P.end, { day: "numeric", month: "long", year: "numeric" })}`,
+      topics: P.certificate?.topics || "", signatories: P.certificate?.signatories || [], verifyUrl: url.replace(/^https?:\/\//, "")
+    });
+    const img = $("#certImg");
+    if (!img) return;
+    img.src = canvas.toDataURL("image/png");
+    const png = $("#certPng");
+    png.disabled = false;
+    png.onclick = () => { const a = document.createElement("a"); a.href = img.src; a.download = `certificate-${c.id}.png`; a.click(); };
+    $("#certPrint").onclick = () => window.print();
+    $("#certCopy").onclick = async () => {
+      try { await navigator.clipboard.writeText(url); toast("Link copied", "success"); } catch { prompt("Copy this link:", url); }
+    };
+  }
+
+  const ROUTES = { "": dashboard, welcome, register, roadmap, module: moduleView, practice, journal, career, leaderboard, resources, profile, admin, certificate: certificateView };
 
   // ---------- theme ----------
   function initTheme() {
@@ -1017,7 +1364,7 @@
   let authKey = "";
   Store.subscribe(() => {
     const k = `${Store.ready}|${Store.user?.uid || ""}|${!!Store.state.profile}`;
-    if (k !== authKey) { authKey = k; route(); } else renderChrome();
+    if (k !== authKey) { authKey = k; cache.spot = cache.myCerts = null; adminRows = null; route(); } else renderChrome();
   });
   window.addEventListener("hashchange", route);
   initTheme();

@@ -458,3 +458,47 @@ textarea { resize: vertical; }
   .term-input label { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+
+/* ---------- photos, recognition, certificates ---------- */
+img.avatar { object-fit: cover; background: var(--surface-2); padding: 0; }
+.avatar-link { display: inline-flex; border-radius: 50%; }
+.avatar-link:hover { text-decoration: none; }
+.photo-row { display: flex; align-items: center; gap: 1rem; margin-bottom: .6rem; }
+.notice { display: flex; align-items: flex-start; gap: .5rem; padding: .7rem .9rem; border-radius: var(--radius-sm); background: var(--surface-2); font-size: .88rem; margin: 0 0 1rem; }
+.notice .ms { flex: none; font-size: 18px; margin-top: 1px; }
+.spot { border-top: 4px solid var(--g-yellow); }
+.spot .eyebrow { display: flex; align-items: center; gap: .3rem; }
+.spot .eyebrow .ms { font-size: 16px; vertical-align: 0; font-variation-settings: "FILL" 1; }
+.spot-list { list-style: none; padding: 0; margin: .3rem 0 .6rem; display: grid; gap: .7rem; }
+.spot-list li { display: flex; align-items: center; gap: .75rem; }
+.spot-list li > div { min-width: 0; }
+.spot-av { position: relative; flex: none; }
+.spot-av .avatar { width: 44px; height: 44px; }
+.spot-av .medal { position: absolute; right: -4px; bottom: -4px; width: 20px; height: 20px; font-size: .68rem; border: 2px solid var(--surface); }
+.cert-link, .cert-banner { display: flex; align-items: center; gap: .7rem; color: var(--text); }
+.cert-link { padding: .55rem .5rem; margin: 0 -.5rem; border-radius: var(--radius-sm); }
+.cert-link:hover, .cert-banner:hover { text-decoration: none; background: var(--surface-2); }
+.cert-link .ms, .cert-banner > .ms:first-child { font-size: 28px; font-variation-settings: "FILL" 1; }
+.cert-banner { border-color: var(--g-yellow); }
+.cert-banner > span { flex: 1; }
+.cert-cell { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; }
+.cert-cell select { width: auto; padding: .35rem .5rem; font-size: .85rem; }
+.flyer-canvas { width: 100%; max-width: 540px; height: auto; display: block; margin: 0 auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.photo-pick { display: flex; align-items: center; gap: .7rem; padding: .45rem 0; border-top: 1px solid var(--border); }
+.photo-pick:first-of-type { border-top: 0; }
+.photo-pick > div { flex: 1; min-width: 0; }
+.photo-pick .icon-btn { cursor: pointer; }
+.table.rec input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--blue); }
+.verified { display: flex; align-items: center; gap: .45rem; font-size: 1.02rem; margin-bottom: 1rem; }
+.verified .ms { font-size: 24px; font-variation-settings: "FILL" 1; }
+.kv.one { grid-template-columns: minmax(0, 1fr); gap: .7rem; margin: 0; }
+.cert-frame { padding: 0; overflow: hidden; }
+.cert-img { display: block; width: 100%; height: auto; min-height: 120px; background: #fff; }
+@media print {
+  @page { size: A4 landscape; margin: 0; }
+  body { background: #fff; }
+  .brandbar, .topbar, .nav, .no-print, .toast { display: none !important; }
+  .shell, .cols, .cert-cols { display: block; max-width: none; margin: 0; }
+  .view { padding: 0; }
+  .cert-frame { border: 0; border-radius: 0; box-shadow: none; }
+}

@@ -32,6 +32,14 @@ window.InfraConfig = {
     start: "2026-10-06",
     end: "2026-12-10",
     sessionNote: "Weekly session every Thursday. Time & venue are announced in the cluster channel.",
-    community: "" // e.g. WhatsApp/Discord invite link
+    community: "", // e.g. WhatsApp/Discord invite link
+
+    // Printed on certificates. Add your chapter lead as a second signatory if you like.
+    certificate: {
+      signatories: [
+        { name: "Usman Masud Aliyu", role: "Infrastructure Cluster Lead" }
+      ],
+      topics: "Linux, networking, Git & GitHub, Docker, Google Cloud, CI/CD and Infrastructure as Code"
+    }
   }
 };

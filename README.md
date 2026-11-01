@@ -44,6 +44,9 @@ Every module in the app has objectives, topics, 6–7 labs, a challenge, a proje
 | **Career** | 6 tracks (Cloud Engineer, DevOps, SRE, Cloud Security, Builder, Exploring) with roles, skills, a 5-step plan for after 10 Dec and certifications |
 | **Leaderboard** | Ranked by XP (labs, quizzes, milestones, drills, journaling) |
 | **Resources** | Setup checklist, cloud concept map, community activities, curated links |
+| **Learners of the Week** | The latest published winners appear on the dashboard and leaderboard |
+| **Certificates** | Members see which certificate they're on track for, then view, download (PNG/PDF), share and add it to LinkedIn once issued |
+| **Profile photo** | Optional; used on their profile and on Learners of the Week flyers |
 
 **XP:** lab 10 · quiz 10 per correct answer (best score) · milestone 30 · drill 5 (2 if the answer was revealed) · journal day 5 · setup item 5 · flashcard 2 · interview answer 3. There are 15 badges.
 
@@ -53,6 +56,17 @@ Every module in the app has objectives, topics, 6–7 labs, a challenge, a proje
 - A searchable member table with full registration details
 - Mentor reviews on each milestone (Approved / Excellent / Needs work + feedback), which the member sees on the module page
 - CSV export (opens in Excel or Google Sheets)
+- **Learners of the Week**: pick a session week (Thursday to Wednesday) and members are ranked by what they did that week. Tick up to 3, swap in photos if needed, then **download a branded flyer (PNG)**, **copy a ready-made write-up** for WhatsApp/LinkedIn, and **publish** it to members' dashboards.
+  Score = lab ×10 · milestone ×30 · drill ×5 · quiz ×10 · active day ×5 · 1 point per 10 minutes logged in the journal.
+- **Certificates**: see who is eligible, then issue one at a time or all at once. Each certificate has an ID and a public verification link (`…/#/certificate/<ID>`) that anyone, e.g. an employer, can open without signing in. You can revoke it.
+
+  | Certificate | Rule (suggested; you can override) |
+  |---|---|
+  | Completion with Distinction | 85%+ overall and at least 9 milestones |
+  | Completion | 60%+ overall and at least 5 milestones |
+  | Participation | 25%+ overall |
+
+  Signatories and the topics line are set in `PROGRAM.certificate` in `site/js/config.js`. Add your chapter lead as a second signatory there if you like.
 
 ---
 
@@ -64,6 +78,8 @@ No build step and no dependencies. Open `site/index.html` in a browser, or serve
 cd site
 python -m http.server 8080   # then open http://localhost:8080
 ```
+
+To preview the admin pages in local mode, run `localStorage.setItem("gdgoc-infra:local-admin", "1")` in the browser console and reload.
 
 By default it runs in **local mode**: each member's data stays in their own browser, and they can export/import a backup from the Profile page. That's fine for trying it out, but **for the cluster, use Firebase mode** so registrations are collected centrally.
 
@@ -85,6 +101,8 @@ Firebase's free Spark plan is enough.
 4. **Project settings → Your apps → Web (`</>`)** → register an app, copy the `firebaseConfig` object, and paste it as `FIREBASE` in [`site/js/config.js`](site/js/config.js).
 5. Deploy. Members now click **Continue with Google**, register once, and their progress syncs across devices.
 6. **Make yourself an admin:** sign in, open **Profile**, copy your *Member ID*. In Firestore, create the collection `admins` with a document whose ID is that Member ID (any field, e.g. `name: "Usman"`). Reload, and **Admin** appears in the menu. Repeat for co-leads and mentors.
+
+> **Updating from an earlier version?** Learners of the Week and certificates need two new rules (`spotlights` and `certificates`). Paste the latest [`firestore.rules`](firestore.rules) into **Firestore Database → Rules** and click **Publish**, or publishing and issuing will fail with "permission denied".
 
 > The Firebase web config is not a secret. Access is controlled by `firestore.rules`: members can only read and write their own records, only admins can read all registrations, and the leaderboard shows no contact details.
 
@@ -109,6 +127,7 @@ site/
   js/config.js      program settings + Firebase config
   js/data.js        curriculum and practice content
   js/store.js       storage (localStorage or Firebase)
+  js/media.js       flyer and certificate drawing (canvas)
   js/app.js         views, routing, progress & XP logic
   assets/           favicon
 firestore.rules     Firestore security rules
