@@ -167,6 +167,39 @@ window.InfraMedia = (() => {
     ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
   }
 
+  // Subtle certificate background: a dot grid in the four GDG colours that fades out
+  // towards the centre (so it never competes with the text), plus a faint "< >" watermark.
+  function certPattern(ctx, x, y, w, h) {
+    const layer = document.createElement("canvas");
+    layer.width = w; layer.height = h;
+    const l = layer.getContext("2d"), colors = [G.blue, G.red, G.yellow, G.green], gap = 34;
+    for (let row = 0, py = gap / 2; py < h; row++, py += gap) {
+      for (let col = 0, px = gap / 2 + (row % 2) * (gap / 2); px < w; col++, px += gap) {
+        l.fillStyle = colors[(row + col) % 4];
+        l.beginPath(); l.arc(px, py, 2.4, 0, Math.PI * 2); l.fill();
+      }
+    }
+    // Fade: transparent in the middle, strongest at the edges.
+    l.globalCompositeOperation = "destination-out";
+    const fade = l.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.18, w / 2, h / 2, Math.max(w, h) * 0.62);
+    fade.addColorStop(0, "rgba(0,0,0,1)");
+    fade.addColorStop(0.55, "rgba(0,0,0,0.85)");
+    fade.addColorStop(1, "rgba(0,0,0,0)");
+    l.fillStyle = fade; l.fillRect(0, 0, w, h);
+
+    // Draw the watermark opaque on its own layer, then fade the whole layer, so overlapping strokes stay even.
+    const mark = document.createElement("canvas");
+    mark.width = w; mark.height = h;
+    logo(mark.getContext("2d"), w / 2, h / 2 + 40, 1100);
+
+    ctx.save();
+    ctx.globalAlpha = 0.18;
+    ctx.drawImage(layer, x, y);
+    ctx.globalAlpha = 0.04;
+    ctx.drawImage(mark, x, y);
+    ctx.restore();
+  }
+
   /**
    * Certificate, 2000 × 1414 (A4 landscape ratio).
    * c = { id, name, type, issuedAt }, o = { chapter, cluster, track, period, topics, signatories, verifyUrl, weeks }
@@ -176,6 +209,7 @@ window.InfraMedia = (() => {
     const W = 2000, H = 1414, ctx = canvas.getContext("2d");
     canvas.width = W; canvas.height = H;
     ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, W, H);
+    certPattern(ctx, 60, 78, W - 120, H - 156);
     brandBar(ctx, 0, 0, W, 18);
     brandBar(ctx, 0, H - 18, W, 18);
     ctx.strokeStyle = LINE; ctx.lineWidth = 3; ctx.strokeRect(60, 78, W - 120, H - 156);
