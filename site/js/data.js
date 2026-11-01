@@ -121,12 +121,14 @@ window.InfraData = (() => {
         "Complete the 'Introduction Sequence' on Learn Git Branching",
         "Create a feature branch, make 3 commits and open a pull request to main",
         "Create a merge conflict on purpose and resolve it",
-        "Team exercise: fork the cluster's shared repo, add your profile card, open a PR and review a teammate's PR",
+        "Team exercise: fork github.com/usmanmasud/infra-cluster-members, add your profile card, open a PR and review a teammate's PR (steps in its README)",
         "Add a .gitignore and a README with setup instructions to CampusBoard"
       ],
       challenge: "Recover a deleted branch with git reflog, then revert a bad commit that has already been pushed.",
       deliverable: "CampusBoard has a clean history, a README, at least one merged PR and GitHub Issues for the next tasks.",
       resources: [
+        R("Cluster members repo (team exercise)", "https://github.com/usmanmasud/infra-cluster-members"),
+        R("Members Wall", "https://usmanmasud.github.io/infra-cluster-members/"),
         R("Learn Git Branching", "https://learngitbranching.js.org/"),
         R("Pro Git (free book)", "https://git-scm.com/book/en/v2"),
         R("GitHub Skills — interactive courses", "https://skills.github.com/"),
